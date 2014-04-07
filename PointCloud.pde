@@ -33,13 +33,13 @@ void setup() {
   }
   
   // Initialize our shader
-  initializeShader();
+  initializeShaderAndVBO();
   
   println("Usage: 's' to toggle shader mode, 'f' to show framerate, 'p' to change point size");
-  println("Running in simple mode by default");
+  println("Running in shader mode by default");
 }
 
-void initializeShader() {
+void initializeShaderAndVBO() {
   // Load shader
   shader = loadShader("frag.glsl", "vert.glsl");
   
