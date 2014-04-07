@@ -128,7 +128,6 @@ void drawWithShader() {
   shader.bind();
   int vertexLocation = pgl.getAttribLocation(shader.glProgram, "vertex");
   int colorLocation = pgl.getAttribLocation(shader.glProgram, "color");
-  pgl.bindBuffer(PGL.ARRAY_BUFFER, vertexBufferObjectName);
   pgl.enableVertexAttribArray(vertexLocation);
   pgl.enableVertexAttribArray(colorLocation);
   pgl.vertexAttribPointer(vertexLocation, 3, PGL.FLOAT, false, 7 * Float.SIZE/8, 0);
