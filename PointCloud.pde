@@ -1,4 +1,6 @@
 import processing.opengl.*;
+import javax.media.opengl.GL2;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -7,13 +9,15 @@ import java.nio.IntBuffer;
 PVector[] points;
 color[] colors;
 
-PShader shader;
 FloatBuffer vertexData;
 int vertexBufferObjectName;
 
 boolean shaderMode = true; 
 float pointSize = 2;
 float cameraTheta = 0;
+
+static final int FLOAT_SIZE = Float.SIZE / 8;
+static final int INTEGER_SIZE = Integer.SIZE / 8;
 
 void setup() {
   size(800, 600, OPENGL);
@@ -32,20 +36,17 @@ void setup() {
     }
   }
   
-  // Initialize our shader
-  initializeShaderAndVBO();
+  // Initialize VBO
+  initializeVBO();
   
   println("Usage: 's' to toggle shader mode, 'f' to show framerate, 'p' to change point size");
   println("Running in shader mode by default");
 }
 
-void initializeShaderAndVBO() {
-  // Load shader
-  shader = loadShader("frag.glsl", "vert.glsl");
-  
+void initializeVBO() {
   // Create a buffer for vertex data
   vertexData = ByteBuffer
-    .allocateDirect(points.length * 7 * Float.SIZE/8)
+    .allocateDirect(points.length * 7 * FLOAT_SIZE)
     .order(ByteOrder.nativeOrder())
     .asFloatBuffer();
   
@@ -53,38 +54,41 @@ void initializeShaderAndVBO() {
   vertexData.rewind();
   for (PVector point : points) {
     // Each point has 7 floats, XYZRGBA
-    vertexData.put(point.x);
-    vertexData.put(point.y);
-    vertexData.put(point.z);
-    vertexData.put(0f);
-    vertexData.put(0f);
-    vertexData.put(0f);
-    vertexData.put(1f);
+    vertexData.put(point.x); // x
+    vertexData.put(point.y); // y
+    vertexData.put(point.z); // z
+    vertexData.put(1f); // r
+    vertexData.put(1f); // g
+    vertexData.put(1f); // b
+    vertexData.put(1f); // a
   }
   vertexData.position(0);
   
   // Generate a buffer binding
   IntBuffer resultBuffer = ByteBuffer
-    .allocateDirect(1 * Integer.SIZE/8)
+    .allocateDirect(1 * INTEGER_SIZE)
     .order(ByteOrder.nativeOrder())
     .asIntBuffer();
   
   PGL pgl = beginPGL();
   pgl.genBuffers(1, resultBuffer); // Generates a buffer, places its id in resultBuffer[0]
   vertexBufferObjectName = resultBuffer.get(0); // Grab our buffer name
+  
   endPGL();
 }
 
 void draw() {
+  // Set camera position
   float radius = 250;
   background(#000000);
   camera(radius*sin(cameraTheta), 0, -radius*cos(cameraTheta), 0, 0, 0, 0, 1, 0);
+  
+  // Reset fill and stroke
   noFill();
   noStroke();
   
-  int millis = millis();
-  
   // Run a little animation on the colors
+  int millis = millis();
   for (int i = 0; i < points.length; ++i) {
     colors[i] = color(
       (millis/40. + abs(points[i].x + points[i].y + points[i].z)) % 360,
@@ -93,6 +97,7 @@ void draw() {
     );
   }
   
+  // Draw
   if (shaderMode) {
     drawWithShader();
   } else {
@@ -119,27 +124,32 @@ void drawWithShader() {
     vertexData.put(7*i + 5, (0xff & (c)) / 255f); // B
   }
   
+  // Get GL2 context
   PGL pgl = beginPGL();
-  
-  // Bind to our vertex buffer object, place the new color data
+  GL2 gl2 = ((PJOGL)pgl).gl.getGL2();
+ 
+  // Bind and update array buffer data 
   pgl.bindBuffer(PGL.ARRAY_BUFFER, vertexBufferObjectName);
-  pgl.bufferData(PGL.ARRAY_BUFFER, points.length * 7 * Float.SIZE/8, vertexData, PGL.DYNAMIC_DRAW);
+  pgl.bufferData(PGL.ARRAY_BUFFER, points.length * 7 * FLOAT_SIZE, vertexData, PGL.DYNAMIC_DRAW);
   
-  shader.bind();
-  int vertexLocation = pgl.getAttribLocation(shader.glProgram, "vertex");
-  int colorLocation = pgl.getAttribLocation(shader.glProgram, "color");
-  pgl.enableVertexAttribArray(vertexLocation);
-  pgl.enableVertexAttribArray(colorLocation);
-  pgl.vertexAttribPointer(vertexLocation, 3, PGL.FLOAT, false, 7 * Float.SIZE/8, 0);
-  pgl.vertexAttribPointer(colorLocation, 4, PGL.FLOAT, false, 7 * Float.SIZE/8, 3 * Float.SIZE/8);
-  javax.media.opengl.GL2 gl2 = (javax.media.opengl.GL2) ((PJOGL)pgl).gl;
+  // Bind client state and data
+  gl2.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+  gl2.glEnableClientState(GL2.GL_COLOR_ARRAY);
+  gl2.glVertexPointer(3, PGL.FLOAT, 7 * FLOAT_SIZE, 0);
+  gl2.glColorPointer(4, PGL.FLOAT, 7 * FLOAT_SIZE, 3 * FLOAT_SIZE);
+ 
+  // Set points size
   gl2.glPointSize(pointSize);
-  pgl.drawArrays(PGL.POINTS, 0, points.length);
-  pgl.disableVertexAttribArray(vertexLocation);
-  pgl.disableVertexAttribArray(colorLocation);
-  shader.unbind();
   
+  // Draw points
+  pgl.drawArrays(PGL.POINTS, 0, points.length);
+ 
+  // Unbind
+  gl2.glDisableClientState(GL2.GL_VERTEX_ARRAY);
+  gl2.glDisableClientState(GL2.GL_COLOR_ARRAY);
   pgl.bindBuffer(PGL.ARRAY_BUFFER, 0);
+ 
+  // Finish PGL
   endPGL();
 }
 
