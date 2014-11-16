@@ -15,6 +15,7 @@ int vertexBufferObjectName;
 boolean shaderMode = true; 
 float pointSize = 2;
 float cameraTheta = 0;
+PShader shader;
 
 static final int FLOAT_SIZE = Float.SIZE / 8;
 static final int INTEGER_SIZE = Integer.SIZE / 8;
@@ -36,7 +37,8 @@ void setup() {
     }
   }
   
-  // Initialize VBO
+  // Initialize shader + VBO
+  shader = loadShader("frag.glsl", "vert.glsl");
   initializeVBO();
   
   println("Usage: 's' to toggle shader mode, 'f' to show framerate, 'p' to change point size");
@@ -133,20 +135,28 @@ void drawWithShader() {
   pgl.bufferData(PGL.ARRAY_BUFFER, points.length * 7 * FLOAT_SIZE, vertexData, PGL.DYNAMIC_DRAW);
   
   // Bind client state and data
-  gl2.glEnableClientState(GL2.GL_VERTEX_ARRAY);
-  gl2.glEnableClientState(GL2.GL_COLOR_ARRAY);
-  gl2.glVertexPointer(3, PGL.FLOAT, 7 * FLOAT_SIZE, 0);
-  gl2.glColorPointer(4, PGL.FLOAT, 7 * FLOAT_SIZE, 3 * FLOAT_SIZE);
+  shader.bind();
+  int vertexLocation = pgl.getAttribLocation(shader.glProgram, "vertex");
+  int colorLocation = pgl.getAttribLocation(shader.glProgram, "color");
+  pgl.enableVertexAttribArray(vertexLocation);
+  pgl.enableVertexAttribArray(colorLocation);
+  pgl.vertexAttribPointer(vertexLocation, 3, PGL.FLOAT, false, 7 * FLOAT_SIZE, 0);
+  pgl.vertexAttribPointer(colorLocation, 4, PGL.FLOAT, false, 7 * FLOAT_SIZE, 3 * FLOAT_SIZE);
  
-  // Set points size
+  // Set point size, disable texture map
+  gl2.glEnable(GL2.GL_BLEND);
+  gl2.glEnable(GL2.GL_POINT_SPRITE);
+  gl2.glEnable(GL2.GL_POINT_SMOOTH);
+  gl2.glDisable(GL2.GL_TEXTURE_2D);
   gl2.glPointSize(pointSize);
   
   // Draw points
   pgl.drawArrays(PGL.POINTS, 0, points.length);
  
   // Unbind
-  gl2.glDisableClientState(GL2.GL_VERTEX_ARRAY);
-  gl2.glDisableClientState(GL2.GL_COLOR_ARRAY);
+  pgl.disableVertexAttribArray(vertexLocation);
+  pgl.disableVertexAttribArray(colorLocation);
+  shader.unbind();
   pgl.bindBuffer(PGL.ARRAY_BUFFER, 0);
  
   // Finish PGL
